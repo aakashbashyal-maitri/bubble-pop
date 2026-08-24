@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Bubble Pop! 🫧</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(180deg, #87ceeb 0%, #b0e0ff 60%, #d4f1ff 100%);
+      font-family: 'Comic Sans MS', 'Chalkboard SE', cursive;
+      touch-action: none;
+    }
+
+    /* Decorative clouds */
+    .cloud {
+      position: absolute;
+      background: white;
+      border-radius: 50px;
+      opacity: 0.75;
+      pointer-events: none;
+    }
+    .cloud::before,
+    .cloud::after {
+      content: '';
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+    }
+
+    #title {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(1.6rem, 6vw, 2.6rem);
+      color: white;
+      text-shadow: 0 3px 8px rgba(0,100,180,0.4);
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 10;
+      letter-spacing: 2px;
+    }
+
+    /* Bubble */
+    .bubble {
+      position: absolute;
+      border-radius: 50%;
+      cursor: pointer;
+      animation: floatUp linear forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9em;
+      transition: transform 0.05s;
+    }
+
+    .bubble:active {
+      transform: scale(0.88);
+    }
+
+    /* The shiny gloss */
+    .bubble::before {
+      content: '';
+      position: absolute;
+      top: 12%;
+      left: 18%;
+      width: 35%;
+      height: 28%;
+      background: rgba(255,255,255,0.55);
+      border-radius: 50%;
+      transform: rotate(-30deg);
+      pointer-events: none;
+    }
+
+    /* Small inner shine dot */
+    .bubble::after {
+      content: '';
+      position: absolute;
+      top: 20%;
+      left: 22%;
+      width: 14%;
+      height: 12%;
+      background: rgba(255,255,255,0.8);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    @keyframes floatUp {
+      0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0.92; }
+      20%  { transform: translateY(-20vh) translateX(var(--sway1)) scale(1); }
+      40%  { transform: translateY(-40vh) translateX(var(--sway2)) scale(1); }
+      60%  { transform: translateY(-60vh) translateX(var(--sway1)) scale(1); }
+      80%  { transform: translateY(-80vh) translateX(var(--sway2)) scale(1); }
+      95%  { opacity: 0.85; }
+      100% { transform: translateY(-105vh) translateX(var(--sway1)) scale(1); opacity: 0; }
+    }
+
+    /* Pop burst animation */
+    .pop-ring {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: popRing 0.4s ease-out forwards;
+      z-index: 20;
+    }
+
+    @keyframes popRing {
+      0%   { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    /* Emoji burst on pop */
+    .pop-emoji {
+      position: absolute;
+      font-size: 2rem;
+      pointer-events: none;
+      animation: emojiFloat 0.9s ease-out forwards;
+      z-index: 21;
+    }
+
+    @keyframes emojiFloat {
+      0%   { transform: translateY(0) scale(1); opacity: 1; }
+      100% { transform: translateY(-80px) scale(1.4); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="title">🫧 Pop the Bubbles! 🫧</div>
+
+  <script>
+    // ── Colours & emojis ──────────────────────────────────────────────
+    const COLORS = [
+      { bg: 'rgba(255, 100, 130, 0.55)', border: 'rgba(220, 50,  80, 0.7)'  }, // pink
+      { bg: 'rgba(100, 180, 255, 0.55)', border: 'rgba(50,  130, 220, 0.7)' }, // blue
+      { bg: 'rgba(120, 230, 140, 0.55)', border: 'rgba(60,  170, 80,  0.7)' }, // green
+      { bg: 'rgba(255, 210,  60, 0.55)', border: 'rgba(210, 160, 10,  0.7)' }, // yellow
+      { bg: 'rgba(200, 130, 255, 0.55)', border: 'rgba(150, 70,  220, 0.7)' }, // purple
+      { bg: 'rgba(255, 160,  60, 0.55)', border: 'rgba(210, 110, 10,  0.7)' }, // orange
+      { bg: 'rgba(80,  230, 210, 0.55)', border: 'rgba(30,  170, 150, 0.7)' }, // teal
+    ];
+
+    const POP_EMOJIS = ['⭐', '✨', '💥', '🌟', '🎉', '💫', '🌈', '❤️', '🦋', '🌸'];
+
+    // ── Audio (Web Audio API — no files needed) ───────────────────────
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function ensureAudio() {
+      if (!audioCtx) audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playPop(colorIndex) {
+      ensureAudio();
+      const baseFreqs = [523, 587, 659, 698, 784, 880, 988]; // C D E F G A B
+      const freq = baseFreqs[colorIndex % baseFreqs.length];
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.5, audioCtx.currentTime + 0.18);
+
+      gain.gain.setValueAtTime(0.45, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.22);
+    }
+
+    // ── Bubble factory ────────────────────────────────────────────────
+    const MIN_SIZE = 60;
+    const MAX_SIZE = 120;
+    let bubbleCount = 0;
+
+    function spawnBubble() {
+      const size = MIN_SIZE + Math.random() * (MAX_SIZE - MIN_SIZE);
+      const colorIndex = Math.floor(Math.random() * COLORS.length);
+      const { bg, border } = COLORS[colorIndex];
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+
+      const left = 5 + Math.random() * 85; // % from left
+      const duration = 6 + Math.random() * 7; // seconds to float up
+
+      // Horizontal sway values (alternating left/right drift)
+      const swayAmount = (Math.random() * 30 + 10) * (Math.random() < 0.5 ? 1 : -1);
+      bubble.style.setProperty('--sway1', `${swayAmount}px`);
+      bubble.style.setProperty('--sway2', `${-swayAmount * 0.6}px`);
+
+      Object.assign(bubble.style, {
+        width:  `${size}px`,
+        height: `${size}px`,
+        left:   `${left}%`,
+        bottom: `-${size}px`,
+        background: bg,
+        border: `3px solid ${border}`,
+        boxShadow: `inset -6px -6px 12px rgba(255,255,255,0.25), 0 4px 18px rgba(0,0,0,0.1)`,
+        animationDuration: `${duration}s`,
+        fontSize: `${size * 0.45}px`,
+      });
+
+      // Pop handler (pointer so it works on touch + mouse)
+      bubble.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        popBubble(bubble, colorIndex, left, size);
+      });
+
+      document.body.appendChild(bubble);
+      bubbleCount++;
+
+      // Remove when animation ends (if not popped)
+      bubble.addEventListener('animationend', () => {
+        bubble.remove();
+        bubbleCount--;
+      });
+    }
+
+    function popBubble(bubble, colorIndex, leftPct, size) {
+      playPop(colorIndex);
+
+      // Record position for effects
+      const rect = bubble.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top  + rect.height / 2;
+
+      bubble.remove();
+      bubbleCount--;
+
+      // Pop ring effect
+      const ring = document.createElement('div');
+      ring.className = 'pop-ring';
+      const { border } = COLORS[colorIndex];
+      Object.assign(ring.style, {
+        width:  `${size}px`,
+        height: `${size}px`,
+        left:   `${cx - size / 2}px`,
+        top:    `${cy - size / 2}px`,
+        border: `4px solid ${border}`,
+      });
+      document.body.appendChild(ring);
+      ring.addEventListener('animationend', () => ring.remove());
+
+      // Random emoji burst
+      const emoji = document.createElement('div');
+      emoji.className = 'pop-emoji';
+      emoji.textContent = POP_EMOJIS[Math.floor(Math.random() * POP_EMOJIS.length)];
+      Object.assign(emoji.style, {
+        left: `${cx - 20}px`,
+        top:  `${cy - 20}px`,
+      });
+      document.body.appendChild(emoji);
+      emoji.addEventListener('animationend', () => emoji.remove());
+    }
+
+    // ── Spawn loop ────────────────────────────────────────────────────
+    const MAX_BUBBLES = 14;
+
+    function maybeSpawn() {
+      if (bubbleCount < MAX_BUBBLES) {
+        spawnBubble();
+      }
+      // Spawn next bubble after a short random delay
+      setTimeout(maybeSpawn, 500 + Math.random() * 900);
+    }
+
+    // ── Decorative clouds ─────────────────────────────────────────────
+    function addClouds() {
+      const positions = [
+        { left: '5%',  top: '8%',  w: 140, h: 50 },
+        { left: '55%', top: '5%',  w: 180, h: 60 },
+        { left: '30%', top: '15%', w: 120, h: 42 },
+        { left: '75%', top: '18%', w: 160, h: 55 },
+      ];
+      positions.forEach(({ left, top, w, h }) => {
+        const c = document.createElement('div');
+        c.className = 'cloud';
+        Object.assign(c.style, {
+          left, top,
+          width:  `${w}px`,
+          height: `${h}px`,
+        });
+        document.body.appendChild(c);
+      });
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────
+    addClouds();
+    // Spawn a few immediately so screen isn't empty
+    for (let i = 0; i < 5; i++) {
+      setTimeout(spawnBubble, i * 300);
+    }
+    setTimeout(maybeSpawn, 2000);
+  </script>
+</body>
+</html>
