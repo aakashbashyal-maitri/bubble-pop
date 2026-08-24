@@ -2,8 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Bubble Pop! 🫧</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#87ceeb" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- iOS PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Bubble Pop" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
   <style>
     * {
       margin: 0;
@@ -17,6 +28,9 @@
       overflow: hidden;
       width: 100vw;
       height: 100vh;
+      /* fill notch/safe areas on modern phones */
+      min-height: -webkit-fill-available;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       background: linear-gradient(180deg, #87ceeb 0%, #b0e0ff 60%, #d4f1ff 100%);
       font-family: 'Comic Sans MS', 'Chalkboard SE', cursive;
       touch-action: none;
@@ -309,6 +323,10 @@
       setTimeout(spawnBubble, i * 300);
     }
     setTimeout(maybeSpawn, 2000);
+    // ── Service Worker ────────────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
   </script>
 </body>
 </html>
