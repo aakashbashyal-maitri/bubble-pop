@@ -184,12 +184,14 @@
     }
 
     // ── Bubble factory ────────────────────────────────────────────────
-    const MIN_SIZE = 60;
-    const MAX_SIZE = 120;
+    // Sizes are viewport-relative so bubbles are always large on any screen
+    const MIN_VW = 18; // % of viewport width
+    const MAX_VW = 32;
     let bubbleCount = 0;
 
     function spawnBubble() {
-      const size = MIN_SIZE + Math.random() * (MAX_SIZE - MIN_SIZE);
+      const vw = window.innerWidth;
+      const size = Math.round((MIN_VW + Math.random() * (MAX_VW - MIN_VW)) / 100 * vw);
       const colorIndex = Math.floor(Math.random() * COLORS.length);
       const { bg, border } = COLORS[colorIndex];
 
