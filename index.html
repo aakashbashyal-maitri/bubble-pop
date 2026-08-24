@@ -147,11 +147,92 @@
       0%   { transform: translateY(0) scale(1); opacity: 1; }
       100% { transform: translateY(-80px) scale(1.4); opacity: 0; }
     }
+
+    /* Install button */
+    #install-btn {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      background: rgba(255,255,255,0.92);
+      color: #2a7abf;
+      border: none;
+      border-radius: 50px;
+      padding: 14px 28px;
+      font-size: 1.1rem;
+      font-family: inherit;
+      font-weight: bold;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      animation: pulse 2s infinite;
+    }
+    #install-btn.visible { display: flex; }
+
+    @keyframes pulse {
+      0%, 100% { transform: translateX(-50%) scale(1); }
+      50%       { transform: translateX(-50%) scale(1.05); }
+    }
+
+    /* iOS instructions overlay */
+    #ios-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 200;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+    #ios-overlay.visible { display: flex; }
+    #ios-box {
+      background: white;
+      border-radius: 20px 20px 0 0;
+      padding: 28px 24px 36px;
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+      font-size: 1rem;
+      color: #333;
+      line-height: 1.7;
+    }
+    #ios-box h2 { margin-bottom: 12px; font-size: 1.3rem; color: #2a7abf; }
+    #ios-box .step { margin: 8px 0; font-size: 1.05rem; }
+    #ios-box .icon { font-size: 1.6rem; vertical-align: middle; }
+    #ios-close {
+      margin-top: 20px;
+      background: #2a7abf;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 12px 32px;
+      font-size: 1rem;
+      font-family: inherit;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
 
   <div id="title">🫧 Pop the Bubbles! 🫧</div>
+
+  <!-- Android/Desktop install button -->
+  <button id="install-btn">📲 Install App</button>
+
+  <!-- iOS instructions overlay -->
+  <div id="ios-overlay">
+    <div id="ios-box">
+      <h2>📲 Install Bubble Pop!</h2>
+      <div class="step">1. Tap the <span class="icon">⬆️</span> <strong>Share</strong> button at the bottom of Safari</div>
+      <div class="step">2. Scroll down and tap <strong>"Add to Home Screen"</strong> <span class="icon">➕</span></div>
+      <div class="step">3. Tap <strong>Add</strong> — done! 🎉</div>
+      <button id="ios-close">Got it!</button>
+    </div>
+  </div>
 
   <script>
     // ── Colours & emojis ──────────────────────────────────────────────
@@ -323,6 +404,55 @@
       setTimeout(spawnBubble, i * 300);
     }
     setTimeout(maybeSpawn, 2000);
+    // ── PWA Install ───────────────────────────────────────────────────
+    const installBtn = document.getElementById('install-btn');
+    const iosOverlay = document.getElementById('ios-overlay');
+    const iosClose   = document.getElementById('ios-close');
+
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isInStandaloneMode = window.navigator.standalone === true
+      || window.matchMedia('(display-mode: fullscreen)').matches
+      || window.matchMedia('(display-mode: standalone)').matches;
+
+    let deferredPrompt = null;
+
+    if (!isInStandaloneMode) {
+      if (isIOS) {
+        // iOS: show button that opens instruction overlay
+        installBtn.textContent = '📲 Install App';
+        installBtn.classList.add('visible');
+        installBtn.addEventListener('pointerdown', e => {
+          e.stopPropagation();
+          iosOverlay.classList.add('visible');
+        });
+      } else {
+        // Android / Desktop: listen for browser's native install prompt
+        window.addEventListener('beforeinstallprompt', e => {
+          e.preventDefault();
+          deferredPrompt = e;
+          installBtn.classList.add('visible');
+        });
+
+        installBtn.addEventListener('pointerdown', async e => {
+          e.stopPropagation();
+          if (!deferredPrompt) return;
+          deferredPrompt.prompt();
+          const { outcome } = await deferredPrompt.userChoice;
+          if (outcome === 'accepted') installBtn.classList.remove('visible');
+          deferredPrompt = null;
+        });
+
+        window.addEventListener('appinstalled', () => {
+          installBtn.classList.remove('visible');
+        });
+      }
+    }
+
+    iosClose.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      iosOverlay.classList.remove('visible');
+    });
+
     // ── Service Worker ────────────────────────────────────────────────
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');
